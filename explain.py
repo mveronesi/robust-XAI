@@ -1,6 +1,7 @@
 import random
 import numpy as np
 import torch
+from torch import nn
 from cifar10 import load_model, load_dataset, load_sample, CLASSES
 from randomized_smoothing import predict, certify, ABSTAIN
 
@@ -14,6 +15,9 @@ def fix_random_seeds(seed: int) -> None:
     torch.cuda.manual_seed_all(seed)
 
 
+# def explain(model: nn.Module, sample: torch.Tensor) -> torch.Tensor:
+#     pass
+
 
 def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -21,26 +25,26 @@ def main():
     dataset = load_dataset()
     sample, label = load_sample(dataset)
     print(f"Original sample label: {CLASSES[label]}")
-    pred_label = predict(
-        model=model,
-        sample=sample,
-        noise_level=0.04,
-        dimensions_to_perturb=torch.ones_like(sample), # for now perturb the whole sample
-        n_monte_carlo=1000,
-        confidence_level=0.95,
-        device=device
-    )
-    print(f"Predicted class: {CLASSES[pred_label] if pred_label != ABSTAIN else 'ABSTAIN'}")
-    # pred_label, radius = certify(
+    # pred_label = predict(
     #     model=model,
     #     sample=sample,
-    #     noise_level=0.04,
+    #     noise_level=0.1732,
     #     dimensions_to_perturb=torch.ones_like(sample), # for now perturb the whole sample
     #     n_monte_carlo=1000,
     #     confidence_level=0.95,
     #     device=device
     # )
-    # print(f"Certified class: {CLASSES[pred_label] if pred_label != ABSTAIN else 'ABSTAIN'}, certified radius: {radius:.4f}")
+    # print(f"Predicted class: {CLASSES[pred_label] if pred_label != ABSTAIN else 'ABSTAIN'}")
+    pred_label, radius = certify(
+        model=model,
+        sample=sample,
+        noise_level=0.1732,
+        dimensions_to_perturb=torch.ones_like(sample), # for now perturb the whole sample
+        n_monte_carlo=1000,
+        confidence_level=0.95,
+        device=device
+    )
+    print(f"Certified class: {CLASSES[pred_label] if pred_label != ABSTAIN else 'ABSTAIN'}, certified radius: {radius:.4f}")
 
 
 if __name__ == "__main__":
