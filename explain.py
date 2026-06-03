@@ -51,7 +51,7 @@ def explain(
     radius = 0.0
     for row, col in tqdm(row_col_pairs):
         dimensions_to_perturb[:, row, col] = 1.0
-        pred_label, radius = certify(
+        pred_label, new_radius = certify(
             model=model,
             sample=sample,
             noise_level=0.3,
@@ -60,9 +60,11 @@ def explain(
             confidence_level=0.95,
             device=sample.device
         )
-        if radius < radius_threshold:
+        if new_radius < radius_threshold:
             dimensions_to_perturb[:, row, col] = 0.0 # undo the last perturbation since it caused the radius to drop below the threshold
             break
+        else:
+            radius = new_radius
     explanation_mask = 1.0 - dimensions_to_perturb[0]
     return explanation_mask, pred_label, radius
 
