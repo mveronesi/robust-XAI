@@ -31,37 +31,31 @@ def sample_under_noise(
     n_monte_carlo: int,
     device: torch.device,
 ) -> torch.Tensor:
-    """Generate Monte Carlo perturbed samples and return model predictions.
+    """Evaluate model predictions on samples perturbed by Gaussian noise.
 
-    The function flattens `sample` and `dimensions_to_perturb`, draws
-    `n_monte_carlo` additive Gaussian perturbations with standard deviation equal to
-    `noise_level` on the enabled dimensions (where `dimensions_to_perturb` is
-    non-zero), applies the perturbations, runs the model in a no-grad context
-    and returns the predicted class indices for each perturbation.
+    Generates Monte Carlo samples by adding Gaussian noise to the input,
+    selectively perturbing only the dimensions specified in
+    `dimensions_to_perturb`, then returns the model's predicted classes.
 
     Parameters
     ----------
-    model:
-        A PyTorch model that accepts a batch of inputs and returns logits.
-    sample:
-        A single input tensor (any shape). The tensor is moved to `device`.
-    noise_level:
-        Scalar standard deviation to use when sampling Gaussian noise. A value of 0
-        disables noise and returns repeated predictions of the original sample.
-    dimensions_to_perturb:
-        A tensor with the same shape as `sample` containing 0/1 values that
-        indicate which dimensions should receive noise. It is flattened and
-        used to construct a diagonal covariance matrix.
-    n_monte_carlo:
-        Number of noisy perturbations to generate (batch size for inference).
-    device:
-        Device on which to perform sampling and model evaluation.
+    model : nn.Module
+        The classifier to evaluate.
+    sample : torch.Tensor
+        Input sample to perturb.
+    noise_level : float
+        Standard deviation of the Gaussian noise.
+    dimensions_to_perturb : torch.Tensor
+        Binary mask indicating which dimensions to perturb (same shape as sample).
+    n_monte_carlo : int
+        Number of noisy samples to generate.
+    device : torch.device
+        Device on which to run computations.
 
     Returns
     -------
     torch.Tensor
-        1-D tensor of length `n_monte_carlo` with predicted class indices for
-        each perturbed sample (dtype: torch.long).
+        Predicted class indices of shape (n_monte_carlo,).
     """
     sample = sample.to(device)
     dimensions_to_perturb = dimensions_to_perturb.to(device)
@@ -71,11 +65,9 @@ def sample_under_noise(
     if noise_level == 0 or torch.all(dimensions_to_perturb_flat == 0):
         perturbations = torch.zeros((n_monte_carlo, sample_flat.numel()), device=device)
     else:
-        cov_matrix = torch.diag(dimensions_to_perturb_flat * (noise_level**2))
-        perturbations = torch.distributions.MultivariateNormal(
-            loc=torch.zeros_like(sample_flat, device=device),
-            covariance_matrix=cov_matrix,
-        ).sample((n_monte_carlo,)).to(device)
+        # Sample Gaussian noise and mask by dimensions_to_perturb
+        noise = torch.randn((n_monte_carlo, sample_flat.numel()), device=device)
+        perturbations = noise * torch.sqrt(dimensions_to_perturb_flat * (noise_level**2))
     perturbed_samples_flat = sample_flat + perturbations
     perturbed_samples = perturbed_samples_flat.reshape(n_monte_carlo, *sample.shape)
 
