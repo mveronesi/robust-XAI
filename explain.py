@@ -5,10 +5,10 @@ import torch
 from torch import nn
 from tqdm import tqdm
 from typing import Tuple, Sequence, Callable
-from cifar10 import load_model, load_dataset, load_sample, plot_sample_with_explanation, get_gradcam_mask, CLASSES
-from randomized_smoothing import predict, certify, ABSTAIN
+from cifar10 import load_model, load_dataset, load_sample, save_sample_with_explanation, get_gradcam_mask, CLASSES
+from randomized_smoothing import certify
 
-SEED = 42
+SEED = 10
 
 
 def fix_random_seeds(seed: int) -> None:
@@ -78,16 +78,19 @@ def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = load_model(device)
     dataset = load_dataset()
-    sample, label = load_sample(dataset)
-    print(f"Original sample label: {CLASSES[label]}")
-    explanation_mask, certified_label, radius = explain(
-        model,
-        sample,
-        traversal_order=lambda x: gradcam_traversal_order(model, x),
-        radius_threshold=0.2
-        )
-    print(f"Certified label: {CLASSES[certified_label]} with radius {radius:.3f}")
-    plot_sample_with_explanation(sample, explanation_mask)
+    n_samples_to_explain = 5
+    for i in range(n_samples_to_explain):
+        print(f"\nExplaining sample {i+1}/{n_samples_to_explain}...")
+        sample, label = load_sample(dataset)
+        print(f"Original sample label: {CLASSES[label]}")
+        explanation_mask, certified_label, radius = explain(
+            model,
+            sample,
+            traversal_order=lambda x: gradcam_traversal_order(model, x),
+            radius_threshold=0.2
+            )
+        print(f"Certified label: {CLASSES[certified_label]} with radius {radius:.3f}")
+        save_sample_with_explanation(sample, explanation_mask, filename=f"explanation_{i+1}.png")
     
 
 if __name__ == "__main__":

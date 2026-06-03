@@ -111,6 +111,33 @@ def plot_sample_with_explanation(sample: torch.Tensor, explanation_mask: torch.T
     plt.show()
 
 
+def save_sample_with_explanation(sample: torch.Tensor, explanation_mask: torch.Tensor, filename: str) -> None:
+    mean = torch.tensor(MEAN).view(3, 1, 1)
+    std = torch.tensor(STD).view(3, 1, 1)
+    image = sample.clone() * std + mean
+    image = torch.clamp(image, 0.0, 1.0)
+    image = image.detach().cpu().permute(1, 2, 0).numpy()
+    mask = explanation_mask.detach().cpu().numpy()
+    if mask.ndim == 3:
+        mask = mask[0]
+
+    plt.figure(figsize=(10, 5))
+    plt.subplot(1, 2, 1)
+    plt.imshow(image)
+    plt.title("Original Image")
+    plt.axis("off")
+
+    plt.subplot(1, 2, 2)
+    plt.imshow(image)
+    plt.imshow(mask, cmap="Reds", alpha=0.5, vmin=0.0, vmax=1.0)
+    plt.title("Image with Explanation Mask")
+    plt.axis("off")
+
+    plt.tight_layout()
+    plt.savefig(filename)
+    print(f"Saved sample with explanation to {filename}")
+
+
 def get_gradcam_mask(model: nn.Module, sample: torch.Tensor) -> torch.Tensor:
     """Compute a simple Grad-CAM heatmap for a single image sample.
 
