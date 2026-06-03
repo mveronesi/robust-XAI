@@ -39,7 +39,7 @@ def explain(
         sample: torch.Tensor, 
         traversal_order: Callable[[torch.Tensor], Sequence[Tuple[int, int]]], 
         radius_threshold: float=0.2
-        ) -> Tuple[torch.Tensor, float]:
+        ) -> Tuple[torch.Tensor, int, float]:
     # assume feature set is equal to the input dimensions for now
     dimensions_to_perturb = torch.zeros_like(sample)
     # create a randomized cartesian product of (row, col) positions
@@ -51,7 +51,7 @@ def explain(
     radius = 0.0
     for row, col in tqdm(row_col_pairs):
         dimensions_to_perturb[:, row, col] = 1.0
-        _, radius = certify(
+        pred_label, radius = certify(
             model=model,
             sample=sample,
             noise_level=0.3,
@@ -64,7 +64,7 @@ def explain(
             dimensions_to_perturb[:, row, col] = 0.0 # undo the last perturbation since it caused the radius to drop below the threshold
             break
     explanation_mask = 1.0 - dimensions_to_perturb[0]
-    return explanation_mask, radius
+    return explanation_mask, pred_label, radius
 
 
 def get_random_explanation_mask(sample: torch.Tensor) -> torch.Tensor:
@@ -78,12 +78,13 @@ def main():
     dataset = load_dataset()
     sample, label = load_sample(dataset)
     print(f"Original sample label: {CLASSES[label]}")
-    explanation_mask, radius = explain(
+    explanation_mask, certified_label, radius = explain(
         model,
         sample,
         traversal_order=lambda x: gradcam_traversal_order(model, x),
-        radius_threshold=0.4
+        radius_threshold=0.2
         )
+    print(f"Certified label: {CLASSES[certified_label]} with radius {radius:.3f}")
     plot_sample_with_explanation(sample, explanation_mask)
     
 
