@@ -1,9 +1,9 @@
 import random
-import math
 import numpy as np
 import torch
 from torch import nn
-from scipy.stats import binomtest
+from typing import Tuple
+from scipy.stats import binomtest, beta, norm
 from cifar10 import load_model, load_dataset, load_sample, show_image, CLASSES
 
 SEED = 42
@@ -27,13 +27,11 @@ def sample_under_noise(model: nn.Module, sample: torch.Tensor, noise_level: floa
         n_monte_carlo: The number of Monte Carlo samples to generate.
         device: The device to run inference on.
     """
-    # move tensors to device
     sample = sample.to(device)
     dimensions_to_perturb = dimensions_to_perturb.to(device)
     sample_flat = sample.flatten()
     dimensions_to_perturb_flat = dimensions_to_perturb.flatten()
 
-    # If no noise is requested, avoid constructing a singular covariance matrix
     if noise_level == 0 or torch.all(dimensions_to_perturb_flat == 0):
         perturbations = torch.zeros((n_monte_carlo, sample_flat.numel()), device=device)
     else:
@@ -51,13 +49,11 @@ def sample_under_noise(model: nn.Module, sample: torch.Tensor, noise_level: floa
     with torch.no_grad():
         logits = model(perturbed_samples)
         preds = logits.argmax(dim=1)
-    # Map numeric predictions to textual class names and print
-    class_names = [CLASSES[int(p)] for p in preds]
-    print(f"Predictions on perturbed samples (classes): {class_names}")
     return preds
 
 
-def predict_on_perturbed_samples(model: nn.Module, sample: torch.Tensor, noise_level: float, dimensions_to_perturb: torch.Tensor, n_monte_carlo: int, confidence_level: float, device: torch.device) -> int:
+# evaluate g at x
+def predict(model: nn.Module, sample: torch.Tensor, noise_level: float, dimensions_to_perturb: torch.Tensor, n_monte_carlo: int, confidence_level: float, device: torch.device) -> int:
     preds = sample_under_noise(model, sample, noise_level, dimensions_to_perturb, n_monte_carlo, device)
     counts = torch.bincount(preds, minlength=len(CLASSES))
     top_two = torch.topk(counts, k=2)
@@ -78,7 +74,21 @@ def predict_on_perturbed_samples(model: nn.Module, sample: torch.Tensor, noise_l
         return ABSTAIN
     
 
-
+# certify the robustness of g around x
+def certify(model: nn.Module, sample: torch.Tensor, noise_level: float, dimensions_to_perturb: torch.Tensor, n_monte_carlo: int, confidence_level: float, device: torch.device) -> Tuple[int, float]:
+    counts0 = sample_under_noise(model, sample, noise_level, dimensions_to_perturb, 100, device)
+    top_class = torch.argmax(torch.bincount(counts0))
+    counts = sample_under_noise(model, sample, noise_level, dimensions_to_perturb, n_monte_carlo, device)
+    n_a = (counts == top_class).sum().item()
+    n_b = (counts != top_class).sum().item()
+    alpha = 1 - confidence_level
+    p_a_lower = 0.0 if n_a == 0 else float(beta.ppf(alpha, n_a, n_b + 1))
+    if p_a_lower > 0.5:
+        # radius: noise_level multiplied by the inverse CDF (ppf) of the standard Gaussian at p_a_lower
+        radius = noise_level * float(norm.ppf(p_a_lower))
+        return int(top_class), radius
+    else:
+        return ABSTAIN, 0.0
 
 
 def main():
@@ -87,16 +97,16 @@ def main():
     dataset = load_dataset()
     sample, label = load_sample(dataset)
     print(f"Original sample label: {CLASSES[label]}")
-    pred_label = predict_on_perturbed_samples(
+    pred_label, radius = certify(
         model=model,
         sample=sample,
         noise_level=0.04,
         dimensions_to_perturb=torch.ones_like(sample), # for now perturb the whole sample
-        n_monte_carlo=100,
+        n_monte_carlo=1000,
         confidence_level=0.95,
         device=device
     )
-    print(f"Final prediction with abstention: {CLASSES[pred_label] if pred_label != ABSTAIN else 'ABSTAIN'}")
+    print(f"Certified class: {CLASSES[pred_label] if pred_label != ABSTAIN else 'ABSTAIN'}, certified radius: {radius:.4f}")
 
 
 if __name__ == "__main__":
