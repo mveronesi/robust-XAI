@@ -5,6 +5,7 @@ from torch import nn
 from torch.utils.data import Dataset
 from typing import cast
 import random
+import matplotlib.pyplot as plt
 
 
 MEAN = (0.4914, 0.4822, 0.4465)
@@ -82,6 +83,31 @@ def sample_inference(model: nn.Module, dataset: Dataset, device: torch.device) -
 
     print(f"Ground truth: {CLASSES[label]}")
     print(f"Prediction:   {CLASSES[pred]}")
+
+
+def plot_sample_with_explanation(sample: torch.Tensor, explanation_mask: torch.Tensor) -> None:
+    mean = torch.tensor(MEAN).view(3, 1, 1)
+    std = torch.tensor(STD).view(3, 1, 1)
+    image = sample.clone() * std + mean
+    image = torch.clamp(image, 0.0, 1.0)
+    image = image.detach().cpu().permute(1, 2, 0).numpy()
+    mask = explanation_mask.detach().cpu().numpy()
+    if mask.ndim == 3:
+        mask = mask[0]
+
+    plt.figure(figsize=(10, 5))
+    plt.subplot(1, 2, 1)
+    plt.imshow(image)
+    plt.title("Original Image")
+    plt.axis("off")
+    
+    plt.subplot(1, 2, 2)
+    plt.imshow(image)
+    plt.imshow(mask, cmap="Reds", alpha=0.5, vmin=0.0, vmax=1.0)
+    plt.title("Image with Explanation Mask")
+    plt.axis("off")
+    plt.tight_layout()
+    plt.show()
 
 
 def main():
