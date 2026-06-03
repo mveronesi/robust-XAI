@@ -4,8 +4,8 @@ import torch
 
 from torch import nn
 from tqdm import tqdm
-from typing import Tuple
-from cifar10 import load_model, load_dataset, load_sample, plot_sample_with_explanation, CLASSES
+from typing import Tuple, Sequence, Callable
+from cifar10 import load_model, load_dataset, load_sample, plot_sample_with_explanation, get_gradcam_mask, CLASSES
 from randomized_smoothing import predict, certify, ABSTAIN
 
 SEED = 42
@@ -18,7 +18,28 @@ def fix_random_seeds(seed: int) -> None:
     torch.cuda.manual_seed_all(seed)
 
 
-def explain(model: nn.Module, sample: torch.Tensor, radius_threshold: float=0.2) -> Tuple[torch.Tensor, float]:
+def random_traversal_order(sample: torch.Tensor) -> Sequence[Tuple[int, int]]:
+    H = sample.shape[1]
+    W = sample.shape[2]
+    flat_indices = torch.randperm(H * W)
+    row_col_pairs = [(int(idx.item()) // W, int(idx.item()) % W) for idx in flat_indices]
+    return row_col_pairs
+
+
+def gradcam_traversal_order(model: nn.Module, sample: torch.Tensor) -> Sequence[Tuple[int, int]]:
+    cam = get_gradcam_mask(model, sample)
+    H, W = cam.shape[1], cam.shape[2]
+    flat_indices = torch.argsort(cam.view(-1), descending=False)
+    row_col_pairs = [(int(idx.item()) // W, int(idx.item()) % W) for idx in flat_indices]
+    return row_col_pairs
+
+
+def explain(
+        model: nn.Module, 
+        sample: torch.Tensor, 
+        traversal_order: Callable[[torch.Tensor], Sequence[Tuple[int, int]]], 
+        radius_threshold: float=0.2
+        ) -> Tuple[torch.Tensor, float]:
     # assume feature set is equal to the input dimensions for now
     dimensions_to_perturb = torch.zeros_like(sample)
     # create a randomized cartesian product of (row, col) positions
@@ -26,7 +47,7 @@ def explain(model: nn.Module, sample: torch.Tensor, radius_threshold: float=0.2)
     W = sample.shape[2]
     flat_indices = torch.randperm(H * W)
     # will iterate over shuffled (row, col) pairs
-    row_col_pairs = [(int(idx.item()) // W, int(idx.item()) % W) for idx in flat_indices]
+    row_col_pairs = traversal_order(sample)
     radius = 0.0
     for row, col in tqdm(row_col_pairs):
         dimensions_to_perturb[:, row, col] = 1.0
@@ -39,12 +60,10 @@ def explain(model: nn.Module, sample: torch.Tensor, radius_threshold: float=0.2)
             confidence_level=0.95,
             device=sample.device
         )
-        #print(f"Certified class: {CLASSES[pred_label] if pred_label != ABSTAIN else 'ABSTAIN'}, certified radius: {radius:.4f}")
         if radius < radius_threshold:
-            dimensions_to_perturb[:, row, col] = 0.0
+            dimensions_to_perturb[:, row, col] = 0.0 # undo the last perturbation since it caused the radius to drop below the threshold
             break
     explanation_mask = 1.0 - dimensions_to_perturb[0]
-    print(f"Explanation mask (1 = important, 0 = unimportant):\n{explanation_mask}")
     return explanation_mask, radius
 
 
@@ -59,7 +78,12 @@ def main():
     dataset = load_dataset()
     sample, label = load_sample(dataset)
     print(f"Original sample label: {CLASSES[label]}")
-    explanation_mask, radius = explain(model, sample, radius_threshold=0.1)
+    explanation_mask, radius = explain(
+        model,
+        sample,
+        traversal_order=lambda x: gradcam_traversal_order(model, x),
+        radius_threshold=0.4
+        )
     plot_sample_with_explanation(sample, explanation_mask)
     
 
