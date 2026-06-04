@@ -6,7 +6,7 @@ from torch import nn
 from tqdm import tqdm
 from typing import Tuple, Sequence, Callable
 from cifar10 import load_model, load_dataset, load_sample, save_sample_with_explanation, get_gradcam_mask, CLASSES
-from randomized_smoothing import certify
+from randomized_smoothing import certify, ABSTAIN
 
 SEED = 10
 
@@ -38,20 +38,18 @@ def explain(
         model: nn.Module, 
         sample: torch.Tensor, 
         traversal_order: Callable[[torch.Tensor], Sequence[Tuple[int, int]]], 
-        radius_threshold: float=0.2
+        radius_threshold: float = 0.2
         ) -> Tuple[torch.Tensor, int, float]:
     # assume feature set is equal to the input dimensions for now
-    dimensions_to_perturb = torch.zeros_like(sample)
-    # create a randomized cartesian product of (row, col) positions
-    H = sample.shape[1]
-    W = sample.shape[2]
-    flat_indices = torch.randperm(H * W)
+    H, W = sample.shape[1], sample.shape[2]
+    dimensions_to_perturb = torch.zeros((H, W), device=sample.device)
     # will iterate over shuffled (row, col) pairs
     row_col_pairs = traversal_order(sample)
     radius = 0.0
+    pred_label = ABSTAIN
     for row, col in tqdm(row_col_pairs):
-        dimensions_to_perturb[:, row, col] = 1.0
-        pred_label, new_radius = certify(
+        dimensions_to_perturb[row, col] = 1.0
+        new_pred_label, new_radius = certify(
             model=model,
             sample=sample,
             noise_level=0.3,
@@ -61,11 +59,12 @@ def explain(
             device=sample.device
         )
         if new_radius < radius_threshold:
-            dimensions_to_perturb[:, row, col] = 0.0 # undo the last perturbation since it caused the radius to drop below the threshold
+            dimensions_to_perturb[row, col] = 0.0 # undo the last perturbation since it caused the radius to drop below the threshold
             break
         else:
             radius = new_radius
-    explanation_mask = 1.0 - dimensions_to_perturb[0]
+            pred_label = new_pred_label
+    explanation_mask = 1.0 - dimensions_to_perturb # invert the mask to indicate which features are important (not perturbed)
     return explanation_mask, pred_label, radius
 
 

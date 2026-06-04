@@ -1,4 +1,3 @@
-- scaricare rete allenata su dataset e dataset, fare inference (DONE)
-- ordinamento pixel random, algoritmo explainability con randomized smoothing
-- explanation con gradcam, ordinamento prima pixel meno importanti
-- gruppi di pixel
+- plot top K gradcam
+- plot radius decrease
+- gruppi di pixel come features
