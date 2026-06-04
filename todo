@@ -1,3 +1,4 @@
 - plot top K gradcam
-- plot radius decrease
+- valutare accuracy
+- valutare grandezza media explanations per classe
 - gruppi di pixel come features
