@@ -3,10 +3,12 @@ import torchvision
 import torchvision.transforms as transforms
 import random
 import matplotlib.pyplot as plt
+import os
+import shutil
 
 from torch import nn
 from torch.utils.data import Dataset
-from typing import Optional, cast
+from typing import Optional, Sequence, cast
 
 from utils import get_gradcam_mask_custom
 
@@ -113,7 +115,16 @@ def plot_sample_with_explanation(sample: torch.Tensor, explanation_mask: torch.T
     plt.show()
 
 
-def save_sample_with_explanation(sample: torch.Tensor, explanation_mask: torch.Tensor, attribution_map: Optional[torch.Tensor], filename: str) -> None:
+# TODO: generalize across different datasets
+def save_sample_with_explanation(
+        sample: torch.Tensor, 
+        explanation_mask: torch.Tensor, 
+        attribution_map: Optional[torch.Tensor], 
+        radius_trend: Sequence[float],
+        radius_threshold: float,
+        filename: str,
+        folder: Optional[str] = None
+        ) -> None:
     mean = torch.tensor(MEAN).view(3, 1, 1)
     std = torch.tensor(STD).view(3, 1, 1)
     image = sample.clone() * std + mean
@@ -123,32 +134,47 @@ def save_sample_with_explanation(sample: torch.Tensor, explanation_mask: torch.T
     if mask.ndim == 3:
         mask = mask[0]
 
-    num_plots = 3 if attribution_map is not None else 2
-    plt.figure(figsize=(5 * num_plots, 5))
+    num_plots = 4 if attribution_map is not None else 3
+    fig, axes = plt.subplots(1, num_plots, figsize=(5 * num_plots, 5))
     
-    plt.subplot(1, num_plots, 1)
-    plt.imshow(image)
-    plt.title("Original Image")
-    plt.axis("off")
+    ax = axes[0]
+    ax.imshow(image)
+    ax.set_title("Original Image")
+    ax.axis("off")
 
-    plt.subplot(1, num_plots, 2)
-    plt.imshow(image)
-    plt.imshow(mask, cmap="Reds", alpha=0.5, vmin=0.0, vmax=1.0)
-    plt.title("Image with Explanation Mask")
-    plt.axis("off")
+    ax = axes[1]
+    ax.imshow(image)
+    ax.set_title("Image with Explanation Mask")
+    ax.axis("off")
+    ax.imshow(mask, cmap="Reds", alpha=0.5, vmin=0.0, vmax=1.0)
+
+    ax = axes[2]
+    ax.plot(range(1, len(radius_trend) + 1), radius_trend)
+    ax.axhline(y=radius_threshold, color='r', linestyle='--', label=f'Threshold: {radius_threshold}')
+    ax.set_title("Radius Trend")
+    ax.set_xlabel("Number of Perturbed Dimensions")
+    ax.set_ylabel("Certified Radius")
+    ax.grid(True, alpha=0.3)
 
     if attribution_map is not None:
-        plt.subplot(1, num_plots, 3)
-        attr_map = attribution_map.detach().cpu().numpy()
-        if attr_map.ndim == 3:
-            attr_map = attr_map[0]
-        plt.imshow(attr_map, cmap="viridis")
-        plt.title("Attribution Map")
-        plt.axis("off")
+        ax = axes[3]
+        attribution = attribution_map.detach().cpu().numpy()
+        if attribution.ndim == 3:
+            attribution = attribution[0]
+        ax.imshow(attribution, cmap="viridis")
+        ax.set_title("Attribution Map")
+        ax.axis("off")
 
-    plt.tight_layout()
-    plt.savefig(filename)
-    print(f"Saved sample with explanation to {filename}")
+    fig.tight_layout()
+    if folder:
+        if os.path.exists(folder):
+            shutil.rmtree(folder)
+        os.makedirs(folder, exist_ok=True)
+        filepath = f"{folder}/{filename}"
+    else:
+        filepath = filename
+    fig.savefig(filepath)
+    print(f"Saved sample with explanation to {filepath}")
 
 
 def main():

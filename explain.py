@@ -8,7 +8,7 @@ from tqdm import tqdm
 from typing import Literal, Tuple, Sequence, Callable, Optional
 from cifar10 import load_model, load_dataset, load_sample, save_sample_with_explanation, CLASSES
 from randomized_smoothing import certify, ABSTAIN
-from utils import plot_radius_trend, get_gradcam_mask_custom
+from utils import get_gradcam_mask
 
 SEED = 42
 
@@ -63,7 +63,7 @@ def get_traversal_order(model: nn.Module, sample: torch.Tensor, attribution_meth
     if attribution_method == "random":
         return random_traversal_order(sample), None
     elif attribution_method == "gradcam":
-        cam = get_gradcam_mask_custom(model, sample)
+        cam = get_gradcam_mask(model, sample)
         H, W = cam.shape[1], cam.shape[2]
         flat_indices = torch.argsort(cam.view(-1), descending=False)
         row_col_pairs = [(int(idx.item()) // W, int(idx.item()) % W) for idx in flat_indices]
@@ -130,8 +130,15 @@ def main():
             radius_threshold=RADIUS_THRESHOLD
             )
         print(f"Certified label: {CLASSES[certified_label]} with radius {radius:.3f}")
-        save_sample_with_explanation(sample, explanation_mask, attribution_map, filename=f"explanation_{i+1}.png")
-        plot_radius_trend(radius_trend, title=f"Radius Trend for Sample {i+1}", radius_threshold=RADIUS_THRESHOLD)
+        save_sample_with_explanation(
+            sample=sample, 
+            explanation_mask=explanation_mask, 
+            attribution_map=attribution_map, 
+            radius_trend=radius_trend,
+            radius_threshold=RADIUS_THRESHOLD,
+            filename=f"explanation_{i+1}.png", 
+            folder="explanations"
+            )
         
     
 

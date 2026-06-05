@@ -5,6 +5,8 @@ from matplotlib import pyplot as plt
 from typing import Sequence
 from torch import nn
 
+from captum.attr import LayerAttribution, LayerGradCam
+
 
 def plot_radius_trend(radius_trend: Sequence[float], title: str, radius_threshold: float) -> None:
     plt.figure(figsize=(10, 6))
@@ -97,3 +99,57 @@ def get_gradcam_mask_custom(model: nn.Module, sample: torch.Tensor) -> torch.Ten
         cam = cam / (cam.max() + 1e-8)
 
     return cam.detach().cpu()
+
+
+def get_gradcam_mask(model: nn.Module, sample: torch.Tensor) -> torch.Tensor:
+    """Compute a Grad-CAM heatmap using Captum for a single image sample.
+
+    Returns a single-channel mask with shape (1, H, W) on the CPU in [0,1].
+    The function is robust to `sample` having shape (3,H,W) or (1,3,H,W).
+    """
+    
+
+    model.eval()
+
+    if sample.dim() == 3:
+        x = sample.unsqueeze(0)
+    else:
+        x = sample
+
+    device = next(model.parameters()).device
+    x = x.to(device)
+
+    target_module = None
+    for module in model.modules():
+        if isinstance(module, nn.Conv2d):
+            target_module = module
+
+    if target_module is None:
+        _, _, h, w = x.shape
+        return torch.zeros(1, h, w)
+
+    with torch.no_grad():
+        logits = model(x)
+        if logits.dim() == 1:
+            logits = logits.unsqueeze(0)
+        target_class = logits.argmax(dim=1).item()
+
+    gradcam = LayerGradCam(model, target_module)
+    attributions = gradcam.attribute(x, target=target_class)
+    if isinstance(attributions, tuple):
+        attributions = attributions[0]
+    attributions = F.relu(attributions)
+    attributions = LayerAttribution.interpolate(
+        attributions,
+        (x.shape[2], x.shape[3]),
+    )
+
+    attributions = attributions.squeeze(0)
+    attributions = attributions.sum(dim=0, keepdim=True)
+    attributions = attributions - attributions.min()
+    if attributions.max() > 0:
+        attributions = attributions / (attributions.max() + 1e-8)
+
+    return attributions.detach().cpu()
+
+
