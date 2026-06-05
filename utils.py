@@ -8,18 +8,6 @@ from torch import nn
 from captum.attr import LayerAttribution, LayerGradCam
 
 
-def plot_radius_trend(radius_trend: Sequence[float], title: str, radius_threshold: float) -> None:
-    plt.figure(figsize=(10, 6))
-    plt.plot(radius_trend)
-    plt.title(title)
-    plt.xlabel('Number of Perturbed Dimensions')
-    plt.ylabel('Certified Radius')
-    plt.axhline(y=radius_threshold, color='r', linestyle='--', label=f'Threshold: {radius_threshold}')
-    plt.grid()
-    plt.legend()
-    plt.savefig(f'{title}.png')
-
-
 def get_gradcam_mask_custom(model: nn.Module, sample: torch.Tensor) -> torch.Tensor:
     """Compute a simple Grad-CAM heatmap for a single image sample.
 
