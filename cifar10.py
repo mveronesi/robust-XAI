@@ -8,7 +8,7 @@ from torch import nn
 from torch.utils.data import Dataset
 from typing import Optional, cast
 
-from utils import get_gradcam_mask
+from utils import get_gradcam_mask_custom
 
 
 MEAN = (0.4914, 0.4822, 0.4465)
@@ -156,7 +156,7 @@ def main():
     dataset = load_dataset()
     model = load_model(device)
     sample, _ = load_sample(dataset)
-    explanation_mask = get_gradcam_mask(model, sample)
+    explanation_mask = get_gradcam_mask_custom(model, sample)
     plot_sample_with_explanation(sample, explanation_mask)
 
 

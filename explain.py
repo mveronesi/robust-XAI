@@ -6,9 +6,9 @@ import matplotlib.pyplot as plt
 from torch import nn
 from tqdm import tqdm
 from typing import Literal, Tuple, Sequence, Callable, Optional
-from cifar10 import load_model, load_dataset, load_sample, save_sample_with_explanation, get_gradcam_mask, CLASSES
+from cifar10 import load_model, load_dataset, load_sample, save_sample_with_explanation, CLASSES
 from randomized_smoothing import certify, ABSTAIN
-from utils import plot_radius_trend
+from utils import plot_radius_trend, get_gradcam_mask_custom
 
 SEED = 42
 
@@ -63,7 +63,7 @@ def get_traversal_order(model: nn.Module, sample: torch.Tensor, attribution_meth
     if attribution_method == "random":
         return random_traversal_order(sample), None
     elif attribution_method == "gradcam":
-        cam = get_gradcam_mask(model, sample)
+        cam = get_gradcam_mask_custom(model, sample)
         H, W = cam.shape[1], cam.shape[2]
         flat_indices = torch.argsort(cam.view(-1), descending=False)
         row_col_pairs = [(int(idx.item()) // W, int(idx.item()) % W) for idx in flat_indices]

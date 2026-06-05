@@ -18,7 +18,7 @@ def plot_radius_trend(radius_trend: Sequence[float], title: str, radius_threshol
     plt.savefig(f'{title}.png')
 
 
-def get_gradcam_mask(model: nn.Module, sample: torch.Tensor) -> torch.Tensor:
+def get_gradcam_mask_custom(model: nn.Module, sample: torch.Tensor) -> torch.Tensor:
     """Compute a simple Grad-CAM heatmap for a single image sample.
 
     Returns a single-channel mask with shape (1, H, W) on the CPU in [0,1].
