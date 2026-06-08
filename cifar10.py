@@ -123,6 +123,8 @@ def save_sample_with_explanation(
         radius_trend: Sequence[float],
         radius_threshold: float,
         filename: str,
+        original_label: str,
+        certified_label: str,
         folder: Optional[str] = None
         ) -> None:
     mean = torch.tensor(MEAN).view(3, 1, 1)
@@ -139,12 +141,12 @@ def save_sample_with_explanation(
     
     ax = axes[0]
     ax.imshow(image)
-    ax.set_title("Original Image")
+    ax.set_title(f"Original Image\nLabel: {original_label}")
     ax.axis("off")
 
     ax = axes[1]
     ax.imshow(image)
-    ax.set_title("Image with Explanation Mask")
+    ax.set_title(f"Image with Explanation Mask\nCertified Label: {certified_label}")
     ax.axis("off")
     ax.imshow(mask, cmap="Reds", alpha=0.5, vmin=0.0, vmax=1.0)
 
@@ -166,13 +168,7 @@ def save_sample_with_explanation(
         ax.axis("off")
 
     fig.tight_layout()
-    if folder:
-        if os.path.exists(folder):
-            shutil.rmtree(folder)
-        os.makedirs(folder, exist_ok=True)
-        filepath = f"{folder}/{filename}"
-    else:
-        filepath = filename
+    filepath = filename if folder is None else f"{folder}/{filename}"
     fig.savefig(filepath)
     print(f"Saved sample with explanation to {filepath}")
 

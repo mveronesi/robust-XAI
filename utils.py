@@ -1,11 +1,17 @@
+import os
+import shutil
+
 import torch
 import torch.nn.functional as F
 
-from matplotlib import pyplot as plt
-from typing import Sequence
 from torch import nn
-
 from captum.attr import LayerAttribution, LayerGradCam
+
+
+def clean_folder(folder: str) -> None:
+    if os.path.exists(folder):
+        shutil.rmtree(folder)
+    os.makedirs(folder, exist_ok=True)
 
 
 def get_gradcam_mask_custom(model: nn.Module, sample: torch.Tensor) -> torch.Tensor:

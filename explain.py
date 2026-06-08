@@ -1,16 +1,15 @@
 import random
 import numpy as np
 import torch
-import matplotlib.pyplot as plt
 
 from torch import nn
 from tqdm import tqdm
 from typing import Literal, Tuple, Sequence, Callable, Optional
 from cifar10 import load_model, load_dataset, load_sample, save_sample_with_explanation, CLASSES
 from randomized_smoothing import certify, ABSTAIN
-from utils import get_gradcam_mask, get_gradcam_mask_custom
+from utils import clean_folder, get_gradcam_mask, get_gradcam_mask_custom
 
-SEED = 11
+SEED = 42
 
 
 def fix_random_seeds(seed: int) -> None:
@@ -115,10 +114,12 @@ def get_random_explanation_mask(sample: torch.Tensor) -> torch.Tensor:
 
 def main():
     RADIUS_THRESHOLD = 0.2
+    OUT_FOLDER = "explanations"
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = load_model(device)
     dataset = load_dataset()
-    n_samples_to_explain = 1
+    n_samples_to_explain = 20
+    clean_folder(OUT_FOLDER)
     for i in range(n_samples_to_explain):
         print(f"\nExplaining sample {i+1}/{n_samples_to_explain}...")
         sample, label = load_sample(dataset)
@@ -136,8 +137,10 @@ def main():
             attribution_map=attribution_map, 
             radius_trend=radius_trend,
             radius_threshold=RADIUS_THRESHOLD,
-            filename=f"explanation_{i+1}.png", 
-            folder="explanations"
+            filename=f"explanation_{i+1}.png",
+            original_label=CLASSES[label],
+            certified_label=CLASSES[certified_label],
+            folder=OUT_FOLDER
             )
         
     
